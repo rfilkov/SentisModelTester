@@ -1246,7 +1246,7 @@ VideoPlayer:
   m_RenderMode: 2
   m_AspectRatio: 2
   m_DataSource: 0
-  m_TimeUpdateMode: 2
+  m_TimeUpdateMode: 0
   m_PlaybackSpeed: 1
   m_AudioOutputMode: 2
   m_TargetAudioSources: []
@@ -1275,7 +1275,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   staticInput: {fileID: 8400000, guid: 5e319a1b124140d4f83d2c9b2bbbc0f6, type: 2}
   webCamName: 
-  webCamResolution: {x: 1920, y: 1080}
+  webCamResolution: {x: 0, y: 0}
 --- !u!4 &1949909798
 Transform:
   m_ObjectHideFlags: 0

@@ -26,7 +26,7 @@ public class ModelTools
         {
             SessionOptions sessionOptions = new SessionOptions();
 #if UNITY_STANDALONE_WIN
-        sessionOptions = SessionOptions.MakeSessionOptionWithCudaProvider(0);  // gpuId
+            //sessionOptions = SessionOptions.MakeSessionOptionWithCudaProvider(0);  // gpuId
 #endif
 
             using (InferenceSession session = new InferenceSession(modelPath, sessionOptions))
@@ -38,8 +38,8 @@ public class ModelTools
 
                 foreach (var name in inputMeta.Keys)
                 {
-                    string shapeStr = string.Join(", ", inputMeta[name].Dimensions.ToArray());
-                    Debug.Log($"ORT inputTensor: {name} - shape: ({shapeStr})");
+                    //string shapeStr = string.Join(", ", inputMeta[name].Dimensions.ToArray());
+                    //Debug.Log($"ORT inputTensor: {name} - shape: ({shapeStr})");
 
                     int[] inputDims = inputMeta[name].Dimensions;
                     int fi = inputDims.Length - 3;
@@ -97,7 +97,7 @@ public class ModelTools
                 {
                     var dtEndTime = DateTime.UtcNow;
                     var dtTime = (dtEndTime.Ticks - dtStartTime.Ticks) * 0.0000001f;
-                    Debug.Log($"ORT model inference took {Mathf.RoundToInt(dtTime * 1000)} ms");
+                    //Debug.Log($"ORT model inference took {Mathf.RoundToInt(dtTime * 1000)} ms");
 
                     // dump the results
                     foreach (var result in results)
@@ -172,14 +172,14 @@ public class ModelTools
 
             using (var inputTensor = inputData != null ? new TensorFloat(tensorShape, inputData) : TensorFloat.AllocZeros(tensorShape))
             {
-                Debug.Log($"Sentis inputTensor: {sentisModel.inputs[0].name} - shape: {inputTensor.shape}");
+                //Debug.Log($"Sentis inputTensor: {sentisModel.inputs[0].name} - shape: {inputTensor.shape}");
 
                 var dtStartTime = DateTime.UtcNow;
                 worker.Execute(inputTensor);
 
                 var dtEndTime = DateTime.UtcNow;
                 var dtTime = (dtEndTime.Ticks - dtStartTime.Ticks) * 0.0000001f;
-                Debug.Log($"Sentis model inference took {Mathf.RoundToInt(dtTime * 1000)} ms");
+                //Debug.Log($"Sentis model inference took {Mathf.RoundToInt(dtTime * 1000)} ms");
 
                 //foreach (var output in sentisModel.outputs)
                 for (int o = 0; o < sentisModel.outputs.Count; o++)
@@ -205,7 +205,7 @@ public class ModelTools
                         var outTensorI = outTensorUnk as TensorInt;
 
                         TensorInt localTensor = outTensorI.ReadbackAndClone();
-                        int[] intTensorData = localTensor.ToReadOnlyArray();  // new float[outTensor.shape.length];
+                        int[] intTensorData = localTensor.ToReadOnlyArray();
                         localTensor.Dispose();
 
                         outTensorData = new float[intTensorData.Length];

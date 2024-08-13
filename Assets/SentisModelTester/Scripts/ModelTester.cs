@@ -74,9 +74,17 @@ public class ModelTester : MonoBehaviour
     // output texture
     private RenderTexture _outTex;
 
+    // canvas
+    //private Canvas canvas = null;
+    private UnityEngine.UI.CanvasScaler scaler = null;
 
     void Awake()
     {
+        // canvas
+        //canvas = FindFirstObjectByType<Canvas>();
+        scaler = FindFirstObjectByType<UnityEngine.UI.CanvasScaler>();
+
+        // lbox shader
         Shader lboxTexShader = Shader.Find("Kinect/LetterboxTexShader");
         _letterboxMat = new Material(lboxTexShader);
     }
@@ -88,7 +96,6 @@ public class ModelTester : MonoBehaviour
             return;
 
         // load the model
-        Debug.Log($"Testing model: {modelAsset.name}");
         _sentisModel = ModelLoader.Load(modelAsset);
 
         if(outputTensorAsImage >= 0 && normalizeOutput)
@@ -151,7 +158,7 @@ public class ModelTester : MonoBehaviour
             if (inputSize.z < 0)
                 inputSize.z = _imageSize.z;
 
-            Debug.Log($"Detected inputSize: {inputSize}, layout: {inputLayout}");
+            //Debug.Log($"Detected inputSize: {inputSize}, layout: {inputLayout}");
         }
     }
 
@@ -196,6 +203,9 @@ public class ModelTester : MonoBehaviour
     // do one step of sentis inference
     private void DoSentisInferenceInParts()
     {
+        if (_convTex == null || framesToExectute <= 0)
+            return;
+
         bool hasMoreWork = false;
         long dtStart = System.DateTime.UtcNow.Ticks;
 
@@ -250,7 +260,7 @@ public class ModelTester : MonoBehaviour
                 // create output texture as needed
                 CreateOutputTexture(output.shape);
 
-                TextureTransform texTransform = new TextureTransform().SetCoordOrigin(CoordOrigin.BottomLeft);
+                //TextureTransform texTransform = new TextureTransform().SetCoordOrigin(CoordOrigin.BottomLeft);
                 TextureConverter.RenderToTexture(output, _outTex);  //, texTransform);
             }
         }
@@ -309,28 +319,48 @@ public class ModelTester : MonoBehaviour
                 outMessageText.text = sMessage;
             }
 
-            Debug.Log($"Total error: {totalError}");
+            //Debug.Log($"Total error: {totalError}");
         }
     }
 
 
-    // returns the maximum screen width of an image, according to the screen resolution and image aspect ratio
-    private float GeMaxImageScreenWidth(Texture tex, float resFactor = 0.45f)
+    // returns the maximum screen size of an image, according to the screen resolution and image aspect ratio
+    private Vector2 GetMaxImageScreenSize(Texture tex, float resFactor = 0.45f)
     {
-        Vector2 scrHalfRes = new Vector2(Screen.width, Screen.height) * resFactor;
-        float minRes = Mathf.Min(scrHalfRes.x, scrHalfRes.y);
-        //Debug.Log($"  tex: {tex.width} x {tex.height}, scr: {Screen.width} x {Screen.height}\nhalfRes: {scrHalfRes:F2}");
+        Vector2 scrHalfRes = scaler.referenceResolution * resFactor;  // new Vector2(Screen.width, Screen.height) * resFactor;
+
+        float imgW = 0f;
+        float imgH = 0f;
 
         if (tex.width >= tex.height)
         {
             // landscape
-            return minRes;
+            imgW = scrHalfRes.x;
+            imgH = imgW * tex.height / tex.width;
+
+            if(imgH > scrHalfRes.y)
+            {
+                imgH = scrHalfRes.y;
+                imgW = imgH * tex.width / tex.height;
+            }
         }
         else
         {
             // portrait
-            return minRes * tex.width / tex.height;
+            imgH = scrHalfRes.y;
+            imgW = imgH * tex.width / tex.height;
+
+            if(imgW > scrHalfRes.x)
+            {
+                imgW = scrHalfRes.x;
+                imgH = imgW * tex.height / tex.width;
+            }
         }
+
+        Vector2 imgSize = new Vector2(imgW, imgH);
+        //Debug.Log($"  tex: {tex.width} x {tex.height}, scr: {Screen.width} x {Screen.height}, refRes: {scaler.referenceResolution:F0}\nhalfRes: {scrHalfRes:F0}, tex: {tex.width} x {tex.height}, img: {imgSize:F0}");
+
+        return imgSize;
     }
 
 
@@ -344,23 +374,20 @@ public class ModelTester : MonoBehaviour
         if (origImage != null && inputImage != null)
         {
             origImage.texture = inputImage;
-
-            float imageW = GeMaxImageScreenWidth(inputImage);
-            float imageH = imageW * inputImage.height / inputImage.width;
-            origImage.rectTransform.sizeDelta = new Vector2(imageW, imageH);
-            //Debug.Log($"origImageSize: {imageW:F2} x {imageH:F2}");
+            origImage.rectTransform.sizeDelta = GetMaxImageScreenSize(inputImage);
+            //Debug.Log($"origImageSize: {origImage.rectTransform.sizeDelta:F2}");
         }
 
-        _convTex = Utils.CreateRenderTexture(_convTex, inputSize.x, inputSize.y, RenderTextureFormat.ARGB32);
-        if(convImage != null && _convTex != null)
+        if (_convTex == null || _convTex.width != inputSize.x || _convTex.height != inputSize.y)
+        {
+            _convTex = Utils.CreateRenderTexture(_convTex, inputSize.x, inputSize.y, RenderTextureFormat.ARGB32);
+        }
+
+        if (convImage != null && _convTex != null)
         {
             convImage.texture = _convTex;
-            //convImage.rectTransform.sizeDelta = new Vector2(_convTex.width, _convTex.height);
-
-            float imageW = GeMaxImageScreenWidth(_convTex);
-            float imageH = imageW * _convTex.height / _convTex.width;
-            convImage.rectTransform.sizeDelta = new Vector2(imageW, imageH);
-            //Debug.Log($"convImageSize: {imageW:F2} x {imageH:F2}");
+            convImage.rectTransform.sizeDelta = GetMaxImageScreenSize(_convTex);
+            //Debug.Log($"convImageSize: {convImage.rectTransform.sizeDelta:F2}");
         }
 
         switch (inputConversion)
@@ -413,24 +440,20 @@ public class ModelTester : MonoBehaviour
             //tLayout = TensorLayout.NHWC;
         }
 
-        //Debug.Log($"Detected output-tex size: {tSize}, layout: {tLayout}");
+        // Debug.Log($"Detected output-tex size: {tSize}, layout: {tLayout}");
 
         if (tSize.x > 20 && tSize.x < 2000 && tSize.y > 20 && tSize.y < 2000 && tSize.z > 0 && tSize.z < 5)
         {
-            if (_outTex == null)
+            if (_outTex == null || _outTex.width != tSize.x || _outTex.height != tSize.y)
             {
-                _outTex = Utils.CreateRenderTexture(_outTex, tSize.x * 2, tSize.y * 2, tSize.z > 1 ? RenderTextureFormat.ARGB32 : RenderTextureFormat.RFloat);
+                _outTex = Utils.CreateRenderTexture(_outTex, tSize.x, tSize.y, tSize.z > 1 ? RenderTextureFormat.ARGB32 : RenderTextureFormat.RFloat);
+            }
 
-                if (outputImage != null && _outTex != null)
-                {
-                    outputImage.texture = _outTex;
-                    //outputImage.rectTransform.sizeDelta = new Vector2(_outTex.width, _outTex.height);
-
-                    float imageW = GeMaxImageScreenWidth(_outTex, 0.6f);
-                    float imageH = imageW * _outTex.height / _outTex.width;
-                    outputImage.rectTransform.sizeDelta = new Vector2(imageW, imageH);
-                    //Debug.Log($"outImageSize: {imageW:F2} x {imageH:F2}");
-                }
+            if (outputImage != null && _outTex != null)
+            {
+                outputImage.texture = _outTex;
+                outputImage.rectTransform.sizeDelta = GetMaxImageScreenSize(_outTex, 0.6f);
+                //Debug.Log($"outImageSize: {outputImage.rectTransform.sizeDelta:F2}");
             }
         }
     }
