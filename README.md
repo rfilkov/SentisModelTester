@@ -1,4 +1,4 @@
-# Sentis Model Tester v1.0.0
+# Sentis Model Tester v1.1
 
 Sentis Model Tester is a tool that allows you to quickly test various ONNX models in Unity Sentis. It can also compare Sentis inference outputs to ONNX-Runtime inference outputs.  
 [Unity Sentis](https://unity.com/products/sentis) is the AI/ML inference engine that runs in Unity 3D. It requires Unity Editor v2023.2 or later.
@@ -36,7 +36,6 @@ Sentis Model Tester is a tool that allows you to quickly test various ONNX model
     * `GPU Compute` backend uses compute shaders on GPU (fast).
     * `GPU Pixel` backend uses pixel shaders on GPU (relatively slow).
     * `CPU` backend does the inference on CPU (slow).
-    * Please don't use `GPU Command Buffer` backend for now. It requires a specific setup.
 * Use the `Input Conversion` options to change the conversion of source image to input tensor. Please consult the model requirements. 
     * `Resize`-option resizes the source image to input resolution.
     * `Crop`-option resizes and crops the source image according to its minimum dimension (width or height).
@@ -54,4 +53,8 @@ Sentis Model Tester is a tool that allows you to quickly test various ONNX model
 * When you select the ONNX model, you can also see more details about it, such as the required input tensors and their shapes, the output tensors, model layers & constants, as well as errors or warnings related to the model layers. Please note, such errors or warnings may cause incorrect model inferences later.
 
 ![screenshot](Screenshots/Screenshot-4.png)
+
+## Updates
+
+* (v1.1) Updated Sentis to v2.0. Fixed breaking changes.
 
