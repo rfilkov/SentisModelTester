@@ -5,7 +5,6 @@ using UnityEngine;
 using Unity.Sentis;
 using Microsoft.ML.OnnxRuntime;
 //using Microsoft.ML.OnnxRuntime.Gpu;
-using Microsoft.ML.OnnxRuntime.Tensors;
 using System;
 using System.Linq;
 using System.IO;
@@ -65,7 +64,7 @@ public class ModelTools
                             inputDims[fi + 2] = imageSize.z;
                     }
 
-                    var tensor = new DenseTensor<float>(inputDims);
+                    var tensor = new Microsoft.ML.OnnxRuntime.Tensors.DenseTensor<float>(inputDims);
                     tensor.Fill(0);
 
                     if (inputData != null)
@@ -158,7 +157,7 @@ public class ModelTools
         try
         {
             // create worker
-            var worker = WorkerFactory.CreateWorker(backendType, sentisModel);
+            var worker = new Worker(sentisModel, backendType);
 
             var inputShape = sentisModel.inputs[0].shape;
             //var tensorShape = inputShape.ToTensorShape();
@@ -166,16 +165,16 @@ public class ModelTools
             var tensorShape = TensorShape.Ones(inputShape.rank);
             for (var i = 0; i < inputShape.rank; i++)
             {
-                if (inputShape[i].isValue)
-                    tensorShape[i] = inputShape[i].value;
+                if (inputShape.Get(i) >= 0)
+                    tensorShape[i] = inputShape.Get(i);
             }
 
-            using (var inputTensor = inputData != null ? new TensorFloat(tensorShape, inputData) : TensorFloat.AllocZeros(tensorShape))
+            using (var inputTensor = inputData != null ? new Tensor<float>(tensorShape, inputData) : new Tensor<float>(tensorShape))
             {
                 //Debug.Log($"Sentis inputTensor: {sentisModel.inputs[0].name} - shape: {inputTensor.shape}");
 
                 var dtStartTime = DateTime.UtcNow;
-                worker.Execute(inputTensor);
+                worker.Schedule(inputTensor);
 
                 var dtEndTime = DateTime.UtcNow;
                 var dtTime = (dtEndTime.Ticks - dtStartTime.Ticks) * 0.0000001f;
@@ -188,24 +187,24 @@ public class ModelTools
                     string outputName = output.name;
 
                     var outTensorUnk = worker.PeekOutput(outputName);
-                    var outTensorF = outTensorUnk as TensorFloat;
+                    var outTensorF = outTensorUnk as Tensor<float>;
 
                     string tensorProps = string.Empty;
                     float[] outTensorData = null;
 
                     if (outTensorF != null)
                     {
-                        TensorFloat localTensor = outTensorF.ReadbackAndClone();
-                        outTensorData = localTensor.ToReadOnlyArray();  // new float[outTensor.shape.length];
+                        Tensor<float> localTensor = outTensorF.ReadbackAndClone();
+                        outTensorData = localTensor.DownloadToArray();  // new float[outTensor.shape.length];
                         localTensor.Dispose();
                     }
                     else
                     {
                         // try int-tensor
-                        var outTensorI = outTensorUnk as TensorInt;
+                        var outTensorI = outTensorUnk as Tensor<int>;
 
-                        TensorInt localTensor = outTensorI.ReadbackAndClone();
-                        int[] intTensorData = localTensor.ToReadOnlyArray();
+                        Tensor<int> localTensor = outTensorI.ReadbackAndClone();
+                        int[] intTensorData = localTensor.DownloadToArray();
                         localTensor.Dispose();
 
                         outTensorData = new float[intTensorData.Length];
@@ -215,7 +214,7 @@ public class ModelTools
 
                     if (o < (sentisModel.outputs.Count - 1) || !hasNormOutput)
                     {
-                        if(origModel != null && o < origModel.outputs.Count)
+                        if (origModel != null && o < origModel.outputs.Count)
                         {
                             outputName = origModel.outputs[o].name;
                         }

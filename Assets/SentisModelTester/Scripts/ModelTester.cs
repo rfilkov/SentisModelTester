@@ -101,27 +101,25 @@ public class ModelTester : MonoBehaviour
         if(outputTensorAsImage >= 0 && normalizeOutput)
         {
             _origModel = _sentisModel;
-            _sentisModel = Functional.Compile(
-                    (input1) =>
-                    {
-                        var modelOutputs = _sentisModel.Forward(input1);
-                        var output = modelOutputs[outputTensorAsImage];
 
-                        var max0 = Functional.ReduceMax(output, new[] { -1, -2, -3 });
-                        var min0 = Functional.ReduceMin(output, new[] { -1, -2, -3 });
+            var modelGraph = new FunctionalGraph();
+            var inputs = modelGraph.AddInputs(_sentisModel);
 
-                        var outNorm = (output - min0) / (max0 - min0);
-                        var outTensors = Functional.Concat(modelOutputs, 1);
+            FunctionalTensor[] modelOutputs = Functional.Forward(_sentisModel, inputs);
+            var output = modelOutputs[outputTensorAsImage];
 
-                        return (outTensors, outNorm);
-                    },
+            var max0 = Functional.ReduceMax(output, new[] { -1, -2, -3 });
+            var min0 = Functional.ReduceMin(output, new[] { -1, -2, -3 });
 
-                    (_sentisModel.inputs[0])
-                );
+            var outNorm = (output - min0) / (max0 - min0);
+            var outTensors = Functional.Concat(modelOutputs, 1);
+
+            FunctionalTensor[] funcOutputs = { outTensors, outNorm };
+            _sentisModel = modelGraph.Compile(funcOutputs);
         }
 
         // init model worker
-        _modelWorker = WorkerFactory.CreateWorker(backendType, _sentisModel);  // BackendType.GPUCompute
+        _modelWorker = new Worker(_sentisModel, backendType);  // BackendType.GPUCompute
         modelLayerCount = _sentisModel.layers.Count;
 
         // estimate input size and tensor layout
@@ -133,11 +131,11 @@ public class ModelTester : MonoBehaviour
             var inShape = _sentisModel.inputs[0].shape;
             if (inShape.rank == 3)
             {
-                inputSize = new Vector3Int(inShape[0].isValue ? inShape[0].value : -1, inShape[1].isValue ? inShape[1].value : -1, inShape[2].isValue ? inShape[2].value : -1);
+                inputSize = new Vector3Int(inShape.Get(0), inShape.Get(1), inShape.Get(2));
             }
             else if (inShape.rank == 4)
             {
-                inputSize = new Vector3Int(inShape[1].isValue ? inShape[1].value : -1, inShape[2].isValue ? inShape[2].value : -1, inShape[3].isValue ? inShape[3].value : -1);
+                inputSize = new Vector3Int(inShape.Get(1), inShape.Get(2), inShape.Get(3));
             }
 
             if (inputSize.x > 0 && inputSize.x < 10)
@@ -194,9 +192,9 @@ public class ModelTester : MonoBehaviour
 
     // sentis parameters
     private bool _isInferenceStarted = false;
-    private IWorker _modelWorker = null;
+    private Worker _modelWorker = null;
     private IEnumerator _modelSchedule = null;
-    private TensorFloat _inputTensor = null;
+    private Tensor<float> _inputTensor = null;
     private int modelLayerCount = 0;
 
 
@@ -218,7 +216,7 @@ public class ModelTester : MonoBehaviour
             else
                 TextureConverter.ToTensor(_convTex, _inputTensor, texTrans);
 
-            _modelSchedule = _modelWorker.ExecuteLayerByLayer(_inputTensor);
+            _modelSchedule = _modelWorker.ScheduleIterable(_inputTensor);
             hasMoreWork = _modelSchedule.MoveNext();
             _isInferenceStarted = true;
         }
@@ -250,7 +248,7 @@ public class ModelTester : MonoBehaviour
             if (outputTensorAsImage >= 0)  // && outputTensorAsImage < _sentisModel.outputs.Count)
             {
                 string outputName = _sentisModel.outputs[_sentisModel.outputs.Count - 1].name;
-                TensorFloat output = _modelWorker.PeekOutput(outputName) as TensorFloat;
+                Tensor<float> output = _modelWorker.PeekOutput(outputName) as Tensor<float>;
 
                 if(output.shape.rank < 4)
                 {
@@ -277,7 +275,7 @@ public class ModelTester : MonoBehaviour
         using (var tensor = TextureConverter.ToTensor(_convTex, texTrans))
         {
             var localTensor = tensor.ReadbackAndClone();
-            tensorData = tensor.ToReadOnlyArray();
+            tensorData = tensor.DownloadToArray();
             localTensor.Dispose();
         }
 
@@ -315,7 +313,7 @@ public class ModelTester : MonoBehaviour
 
             if(outMessageText != null)
             {
-                sMessage += $"\nTotal error: {totalError}\n";
+                sMessage += $"\nTotal difference: {totalError}\n";
                 outMessageText.text = sMessage;
             }
 
